@@ -774,6 +774,9 @@ jobs:
           GH_ARTIFACT_TOKEN: ${{ fromJson(steps.pipelines-tokens.outputs.tokens_json).propose_infra_change }}
           AFTER_HOOKS_OUTPUT_FILE: ${{ steps.hooks_after.outputs.output_file }}
           AFTER_HOOKS_OUTCOME: ${{ steps.hooks_after.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPO: ${{ github.repository }}
         run: |
           pipelines status-update finalize \
             --working-directory . \
@@ -788,23 +791,21 @@ jobs:
 
           printf '%.s─' $(seq 1 "$(tput -T dumb cols)")
           echo " "
+
           if [[ "$AFTER_HOOKS_OUTCOME" != "failure" && "$pipeline_status" == "success" ]]; then
             echo -e "✅ \033[1;32mPipeline Passed\033[0m"
             exit 0
-          else
-            echo -e "❌ \033[1;31mPipeline Failed\033[0m"
-            exit 1
           fi
 
-  pipelines_status_check_retry:
-    name: "Retry Pipelines Status Check"
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    needs: [pipelines_status_check]
-    if: failure() && fromJSON(github.run_attempt) < 3
-    steps:
-      - name: Retry failed jobs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Attempt ${{ github.run_attempt }} failed — retrying failed jobs..."
-          gh run rerun ${{ github.run_id }} --repo ${{ github.repository }} --failed
+          # Check for transient "step summary was not found" error and trigger rerun
+          if jq -e '.failures[]? | select(test("step summary was not found"))' /tmp/finalize-output.json >/dev/null 2>&1; then
+            if [[ "$RUN_ATTEMPT" -lt 3 ]]; then
+              echo "⏳ Step summary not found — triggering rerun via workflow_dispatch..."
+              gh workflow run pipelines-rerun.yml \
+                --repo "$REPO" \
+                --field run_id="$RUN_ID" || true
+            fi
+          fi
+
+          echo -e "❌ \033[1;31mPipeline Failed\033[0m"
+          exit 1
