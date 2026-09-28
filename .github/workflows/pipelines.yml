@@ -411,3 +411,16 @@ jobs:
             echo -e "❌ \033[1;31mPipeline Failed\033[0m"
             exit 1
           fi
+
+  pipelines_status_check_retry:
+    name: "Retry Pipelines Status Check"
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    needs: [pipelines_status_check]
+    if: failure() && fromJSON(github.run_attempt) < 3
+    steps:
+      - name: Retry failed jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Retrying failed jobs (attempt ${{ github.run_attempt }})"
+          gh run rerun ${{ github.run_id }} --repo ${{ github.repository }} --failed
