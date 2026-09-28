@@ -417,8 +417,6 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runner) }}
     needs: [pipelines_status_check]
     if: failure() && fromJSON(github.run_attempt) < 3
-    permissions:
-      actions: write
     steps:
       - name: Retry failed jobs
         env:
