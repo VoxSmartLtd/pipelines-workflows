@@ -70,7 +70,7 @@ on:
         required: false
       PIPELINES_PLAN_ENCRYPTION_KEY:
         required: false
-      WORKFLOW_TRIGGER:
+      ORG_WORKFLOW_ACTION_TOKEN:
         required: false
 
 env:
@@ -779,7 +779,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           REPO: ${{ github.repository }}
-          WORKFLOW_TRIGGER: ${{ secrets.WORKFLOW_TRIGGER }}
+          ORG_WORKFLOW_ACTION_TOKEN: ${{ secrets.ORG_WORKFLOW_ACTION_TOKEN }}
         run: |
           pipelines status-update finalize \
             --working-directory . \
@@ -802,9 +802,9 @@ jobs:
 
           # Check for transient "step summary was not found" error and trigger rerun
           if jq -e '.failures[]? | select(test("step summary was not found"))' /tmp/finalize-output.json >/dev/null 2>&1; then
-            if [[ -n "$WORKFLOW_TRIGGER" && "$RUN_ATTEMPT" -lt 3 ]]; then
+            if [[ -n "$ORG_WORKFLOW_ACTION_TOKEN" && "$RUN_ATTEMPT" -lt 3 ]]; then
               echo "⏳ Step summary not found — triggering rerun via workflow_dispatch..."
-              GH_TOKEN="$WORKFLOW_TRIGGER" gh workflow run pipelines-rerun.yml \
+              GH_TOKEN="$ORG_WORKFLOW_ACTION_TOKEN" gh workflow run pipelines-rerun.yml \
                 --repo "$REPO" \
                 --field run_id="$RUN_ID" || true
             fi
